@@ -511,8 +511,10 @@ type ParseReturnWithToken = [number, boolean, TokenWithStart | TokenAttribute];
 
 type ParseReturnWithoutToken = [number, boolean];
 
+type ParseCallback = (token: Token) => void
+
 // his divine shadow
-const Lexx = (xml: string, options?: Options) => {
+const Lexx = (xml: string, options?: Options, parseCallback?: ParseCallback) => {
   const useOptions = {
     ...defaultOptions,
     ...options,
@@ -524,6 +526,11 @@ const Lexx = (xml: string, options?: Options) => {
   let token;
   let debugExitAfterLoops = Math.min(xml.length, 1073741824); // an arbitrary large number
   let inElement: boolean = false;
+  const callback = parseCallback ? parseCallback :
+    (token: Token) => {
+      tokens.push(token)
+      return true
+    }
 
   while (i < xml.length) {
     char = xml[i];
@@ -538,7 +545,7 @@ const Lexx = (xml: string, options?: Options) => {
       // text node
       if (char !== "<") {
         [i, inElement, token] = onText(xml, i, useOptions.jsx);
-        tokens.push(token);
+        callback(token);
       } else {
         // element starts again
         inElement = true;
@@ -559,28 +566,28 @@ const Lexx = (xml: string, options?: Options) => {
                 i++;
               }
               [i, inElement, token] = onClose(xml, i, inElement);
-              tokens.push(token);
+              callback(token);
               break;
             case "?":
               [i, inElement, token] = onQuestionElement(xml, i);
-              tokens.push(token);
+              callback(token);
               break;
             case "!":
               [i, inElement, token] = onExclamation(xml, i, inElement);
-              tokens.push(token);
+              callback(token);
               break;
             case "[":
               [i, inElement, token] = onShorthandCDATA(xml, i, inElement);
-              tokens.push(token);
+              callback(token);
               break;
             case ">":
               [i, inElement, token] = onElement(xml, i, inElement);
-              tokens.push(token);
+              callback(token);
 
               break;
             default:
               [i, inElement, token] = onElement(xml, i, inElement);
-              tokens.push(token);
+              callback(token);
               break;
           }
           break;
@@ -588,7 +595,7 @@ const Lexx = (xml: string, options?: Options) => {
           if (xml[i + 1] === ">") {
             inElement = false;
             [i, inElement, token] = onClose(xml, i, inElement);
-            tokens.push(token);
+            callback(token);
           } else {
             // in an element finding a "/" between attributes but not at end. weird. ignore.
             i++;
@@ -609,12 +616,12 @@ const Lexx = (xml: string, options?: Options) => {
             ) !== -1
           ) {
             [i, inElement, token] = onBlackhole(xml, i, inElement, lastElement);
-            tokens.push(token);
+            callback(token);
           }
           if (useOptions.html) {
             token = onHTMLSelfClosingElement(xml, i, tokens);
             if (token) {
-              tokens.push(token);
+              callback(token);
             }
           }
           break;
@@ -626,11 +633,11 @@ const Lexx = (xml: string, options?: Options) => {
           break;
         default:
           [i, inElement, token] = onAttribute(xml, i, inElement);
-          tokens.push(token);
+          callback(token);
           if (!inElement && useOptions.html) {
             token = onHTMLSelfClosingElement(xml, i, tokens);
             if (token) {
-              tokens.push(token);
+              callback(token);
             }
           }
           break;
